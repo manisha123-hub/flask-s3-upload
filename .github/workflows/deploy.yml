@@ -1,4 +1,4 @@
-name: Deploy to EC2
+name: Deploy Flask App to EC2
 
 on:
   push:
@@ -10,23 +10,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Deploy via SSH to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/flask-s3-upload || exit 1
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Deploy application
-        run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            cd ~/flask-s3-upload || exit
+            
             git pull origin master
-            pip3 install -r requirements.txt
-            pkill -f "python3 app.py" || true
-            nohup python3 app.py > output.log 2>&1 &
-            pm2 reload flask.app 
-          EOF
+
+          
+            /home/ubuntu/flask-s3-upload/venv/bin/pip install -r requirements.txt
+
+            
+            pm2 reload flask-app || pm2 start app.py \
+              --name flask-app \
+              --interpreter /home/ubuntu/flask-s3-upload/venv/bin/python
